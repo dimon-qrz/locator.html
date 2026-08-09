@@ -1,9 +1,9 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Акустичний Пеленгатор v5 (Фільтрація Цілей)</title>
+  <title>Акустичний Пеленгатор v5.1 (Повний Функціонал)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -41,7 +41,7 @@
 
     .panel {
       width: 100%;
-      max-width: 420px;
+      max-width: 440px;
       background: #111827;
       border: 1px solid #1f2937;
       border-radius: 12px;
@@ -95,7 +95,7 @@
       margin-top: 4px;
     }
 
-    .btn-target {
+    .btn-target, .btn-mode {
       padding: 6px 4px;
       background: #111827;
       border: 1px solid #374151;
@@ -106,7 +106,7 @@
       text-align: center;
     }
 
-    .btn-target.active {
+    .btn-target.active, .btn-mode.active {
       background: #0284c7;
       color: #fff;
       border-color: #38bdf8;
@@ -151,14 +151,23 @@
 </head>
 <body>
 
-  <h1>Пеленгатор v5: Фільтр Цілей</h1>
+  <h1>Пеленгатор v5.1: Фільтр + Чутливість</h1>
 
   <div class="radar-box">
     <canvas id="radar" width="280" height="280"></canvas>
   </div>
 
   <div class="panel">
-    <div class="status-box" id="status-text">Виберіть профіль цілі та ініціалізуйте аудіо</div>
+    <div class="status-box" id="status-text">Оберіть тип пристрою, ціль та налаштуйте мікрофони</div>
+
+    <!-- Вибір конфігурації пристрою (ПК / Смартфон) -->
+    <div class="form-group">
+      <label>💻/📱 Конфігурація платформи:</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px;">
+        <button class="btn-mode active" id="mode-pc" data-mode="pc">💻 ПК / Зовнішні мікрофони</button>
+        <button class="btn-mode" id="mode-phone" data-mode="phone">📱 Смартфон (Вбудована база)</button>
+      </div>
+    </div>
 
     <!-- Блок вибору цілі / фільтрації -->
     <div class="form-group" style="background: #1e1b4b; border-color: #4338ca;">
@@ -175,7 +184,7 @@
         <button class="btn-target" data-target="manual">🎛️ Ручне</button>
       </div>
 
-      <!-- Ручне налаштування (приховане за замовчуванням) -->
+      <!-- Ручне налаштування -->
       <div id="manual-controls" style="display: none; margin-top: 6px;">
         <div class="row">
           <label>Центральна частота (Гц):</label>
@@ -191,23 +200,33 @@
       </div>
     </div>
 
-    <canvas id="spectrum" width="396" height="35"></canvas>
+    <canvas id="spectrum" width="414" height="35"></canvas>
 
-    <!-- Налаштування мікрофонів -->
+    <!-- MIC 1 -->
     <div class="form-group">
       <div class="row">
         <label><span class="step-badge">MIC 1</span> Основний (0°)</label>
-        <span id="lbl-m1-val" style="color:#38bdf8">0° | 0 мс</span>
+        <span id="lbl-m1-val" style="color:#38bdf8">Підсилення: 1.0x</span>
       </div>
-      <select id="mic-1"><option>Завантаження...</option></select>
+      <select id="mic-1"><option>Завантаження пристроїв...</option></select>
+      <div class="row" style="margin-top: 4px;">
+        <label>Чутливість (Gain):</label>
+        <input type="range" id="m1-gain" min="0.1" max="5.0" step="0.1" value="1.0" style="width: 60%;">
+      </div>
     </div>
 
+    <!-- MIC 2 -->
     <div class="form-group">
       <div class="row">
         <label><span class="step-badge" style="background:#f59e0b">MIC 2</span> Додатковий (90°)</label>
-        <span id="lbl-m2-val" style="color:#f59e0b">90° | 120 мс</span>
+        <span id="lbl-m2-val" style="color:#f59e0b">Затримка: 120 мс</span>
       </div>
-      <select id="mic-2"><option>Завантаження...</option></select>
+      <select id="mic-2"><option>Завантаження пристроїв...</option></select>
+      
+      <div class="row" style="margin-top: 4px;">
+        <label>Чутливість (Gain):</label>
+        <input type="range" id="m2-gain" min="0.1" max="5.0" step="0.1" value="1.0" style="width: 60%;">
+      </div>
       <div class="row" style="margin-top: 4px;">
         <label>Компенсація затримки (мс):</label>
         <input type="range" id="m2-delay" min="0" max="500" value="120" style="width: 60%;">
@@ -220,7 +239,7 @@
       <span>Азимут: <b id="calc-azimuth" style="color:#38bdf8">0°</b></span>
     </div>
 
-    <button class="btn-action" id="btn-init">1. Старт Калібрування</button>
+    <button class="btn-action" id="btn-init">1. Ініціалізувати Аудіо</button>
     <button class="btn-action" id="btn-scan" disabled>2. Запустити Пеленгацію</button>
   </div>
 
@@ -232,11 +251,15 @@
 
     const mic1Select = document.getElementById('mic-1');
     const mic2Select = document.getElementById('mic-2');
+    const m1Gain = document.getElementById('m1-gain');
+    const m2Gain = document.getElementById('m2-gain');
     const m2Delay = document.getElementById('m2-delay');
+    const lblM1 = document.getElementById('lbl-m1-val');
     const lblM2 = document.getElementById('lbl-m2-val');
     const statusText = document.getElementById('status-text');
 
     const targetBtns = document.querySelectorAll('.btn-target');
+    const modeBtns = document.querySelectorAll('.btn-mode');
     const targetInfo = document.getElementById('target-info');
     const manualControls = document.getElementById('manual-controls');
     const manualFreq = document.getElementById('manual-freq');
@@ -247,13 +270,13 @@
     const btnInit = document.getElementById('btn-init');
     const btnScan = document.getElementById('btn-scan');
 
-    let audioCtx, filter1, filter2, analyser1, analyser2, spectrumAnalyser;
+    let audioCtx, gainNode1, gainNode2, filter1, filter2, analyser1, analyser2, spectrumAnalyser;
     let delayNode1, delayNode2;
     let isInitialized = false, isScanning = false;
     let currentAzimuth = 0, scanLineAngle = 0;
     let activeTargetMode = 'auto';
+    let devicePlatform = 'pc';
 
-    // Профілі частот (Центральна частота та Q-фактор)
     const TARGET_PROFILES = {
       shahed: { freq: 280, q: 4.0, label: "Шахед (120-450 Гц)" },
       moped:  { freq: 450, q: 2.5, label: "Мопед/2T (200-800 Гц)" },
@@ -263,19 +286,29 @@
       auto:   { freq: 500, q: 1.0, label: "Авто-Захоплення" }
     };
 
-    // Перемикання пресетів
+    // Перемикання режиму ПК / Смартфон
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        devicePlatform = btn.dataset.mode;
+        if (devicePlatform === 'phone') {
+          m2Delay.value = 10; // Коротша база для смартфона
+          lblM2.textContent = `Затримка: 10 мс`;
+        } else {
+          m2Delay.value = 120;
+          lblM2.textContent = `Затримка: 120 мс`;
+        }
+        if (delayNode2) delayNode2.delayTime.value = m2Delay.value / 1000;
+      });
+    });
+
     targetBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         targetBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeTargetMode = btn.dataset.target;
-
-        if (activeTargetMode === 'manual') {
-          manualControls.style.display = 'block';
-        } else {
-          manualControls.style.display = 'none';
-        }
-
+        manualControls.style.display = (activeTargetMode === 'manual') ? 'block' : 'none';
         applyFilterSettings();
       });
     });
@@ -290,9 +323,22 @@
       applyFilterSettings();
     });
 
+    m1Gain.addEventListener('input', () => {
+      lblM1.textContent = `Підсилення: ${parseFloat(m1Gain.value).toFixed(1)}x`;
+      if (gainNode1) gainNode1.gain.value = parseFloat(m1Gain.value);
+    });
+
+    m2Gain.addEventListener('input', () => {
+      if (gainNode2) gainNode2.gain.value = parseFloat(m2Gain.value);
+    });
+
+    m2Delay.addEventListener('input', () => {
+      lblM2.textContent = `Затримка: ${m2Delay.value} мс`;
+      if (delayNode2) delayNode2.delayTime.value = m2Delay.value / 1000;
+    });
+
     function applyFilterSettings() {
       if (!filter1 || !filter2) return;
-
       const profile = TARGET_PROFILES[activeTargetMode];
       targetInfo.textContent = profile.label;
 
@@ -309,30 +355,32 @@
       }
     }
 
-    m2Delay.addEventListener('input', () => {
-      lblM2.textContent = `90° | ${m2Delay.value} мс`;
-      if (delayNode2) delayNode2.delayTime.value = m2Delay.value / 1000;
-    });
-
-    // Отримання мікрофонів
     async function getDevices() {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         const devices = await navigator.mediaDevices.enumerateDevices();
         mic1Select.innerHTML = ''; mic2Select.innerHTML = '';
+        
         const inputs = devices.filter(d => d.kind === 'audioinput');
-        inputs.forEach((d, i) => {
-          mic1Select.add(new Option(d.label || `Мікрофон ${i+1}`, d.deviceId));
-          mic2Select.add(new Option(d.label || `Мікрофон ${i+1}`, d.deviceId));
+        
+        // Видалення дублікатів за deviceId
+        const uniqueInputs = inputs.filter((v, i, a) => a.findIndex(t => t.deviceId === v.deviceId) === i);
+
+        uniqueInputs.forEach((d, i) => {
+          const label = d.label || `Мікрофон ${i+1}`;
+          mic1Select.add(new Option(label, d.deviceId));
+          mic2Select.add(new Option(label, d.deviceId));
         });
-        if (inputs.length > 1) mic2Select.selectedIndex = 1;
+
+        if (uniqueInputs.length > 1) {
+          mic2Select.selectedIndex = 1;
+        }
       } catch (e) {
         statusText.textContent = "Помилка доступу до мікрофонів!";
       }
     }
     getDevices();
 
-    // Малювання радара
     function drawRadar() {
       const w = rCanvas.width, h = rCanvas.height;
       const cx = w / 2, cy = h / 2, r = w / 2 - 15;
@@ -349,11 +397,9 @@
       rCtx.moveTo(cx, cy - r); rCtx.lineTo(cx, cy + r);
       rCtx.stroke();
 
-      // М1 (0° - верх)
       rCtx.fillStyle = '#10b981';
       rCtx.beginPath(); rCtx.arc(cx, cy - r + 5, 5, 0, Math.PI * 2); rCtx.fill();
 
-      // М2 (90° - право)
       rCtx.fillStyle = '#f59e0b';
       rCtx.beginPath(); rCtx.arc(cx + r - 5, cy, 5, 0, Math.PI * 2); rCtx.fill();
 
@@ -378,7 +424,6 @@
     }
     drawRadar();
 
-    // Малювання Спектрограми
     function drawSpectrum() {
       if (!spectrumAnalyser) return;
       const buffer = new Uint8Array(spectrumAnalyser.frequencyBinCount);
@@ -388,7 +433,6 @@
       const barWidth = (sCanvas.width / buffer.length) * 2;
       let x = 0;
 
-      // Авто-захоплення частоти піку
       let maxVol = 0, maxIndex = 0;
 
       for (let i = 0; i < buffer.length; i++) {
@@ -403,7 +447,6 @@
         }
       }
 
-      // Якщо режим АВТО - підлаштовуємо фільтр під найгучніший пік
       if (activeTargetMode === 'auto' && maxVol > 50 && filter1) {
         const nyquist = audioCtx.sampleRate / 2;
         const peakFreq = (maxIndex / buffer.length) * (nyquist / 4);
@@ -417,7 +460,6 @@
       requestAnimationFrame(drawSpectrum);
     }
 
-    // Аудіо процес
     btnInit.addEventListener('click', async () => {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -432,12 +474,15 @@
         const src1 = audioCtx.createMediaStreamSource(stream1);
         const src2 = audioCtx.createMediaStreamSource(stream2);
 
-        // Вузли Затримки
+        gainNode1 = audioCtx.createGain();
+        gainNode2 = audioCtx.createGain();
+        gainNode1.gain.value = parseFloat(m1Gain.value);
+        gainNode2.gain.value = parseFloat(m2Gain.value);
+
         delayNode1 = audioCtx.createDelay(1.0);
         delayNode2 = audioCtx.createDelay(1.0);
         delayNode2.delayTime.value = parseFloat(m2Delay.value) / 1000;
 
-        // Вузли Фільтрації (Bandpass)
         filter1 = audioCtx.createBiquadFilter();
         filter2 = audioCtx.createBiquadFilter();
         filter1.type = "bandpass";
@@ -450,13 +495,16 @@
         analyser2.fftSize = 256;
         spectrumAnalyser.fftSize = 128;
 
-        // З'єднання ланцюга: Src -> Delay -> Filter -> Analyser
-        src1.connect(delayNode1);
+        // Канал 1
+        src1.connect(gainNode1);
+        gainNode1.connect(delayNode1);
         delayNode1.connect(filter1);
         filter1.connect(analyser1);
         filter1.connect(spectrumAnalyser);
 
-        src2.connect(delayNode2);
+        // Канал 2
+        src2.connect(gainNode2);
+        gainNode2.connect(delayNode2);
         delayNode2.connect(filter2);
         filter2.connect(analyser2);
 
@@ -465,7 +513,7 @@
         isInitialized = true;
         btnScan.disabled = false;
         btnInit.style.display = 'none';
-        statusText.textContent = "Система відфільтрована. Натисніть «Запустити Пеленгацію».";
+        statusText.textContent = "Система готова. Натисніть «Запустити Пеленгацію».";
 
         processAudio();
         drawSpectrum();
@@ -491,7 +539,7 @@
 
       if (avg1 + avg2 > 5) {
         const ratio = avg2 / (avg1 + avg2);
-        currentAzimuth = ratio * 90; // кут між M1 (0°) та M2 (90°)
+        currentAzimuth = ratio * 90;
         document.getElementById('calc-azimuth').textContent = `${Math.round(currentAzimuth)}°`;
       }
 
@@ -500,9 +548,9 @@
 
     btnScan.addEventListener('click', () => {
       isScanning = true;
-      statusText.textContent = `Сканування активне [Профіль: ${activeTargetMode.toUpperCase()}]`;
+      statusText.textContent = `Пеленгація активна [Платформа: ${devicePlatform.toUpperCase()} | Ціль: ${activeTargetMode.toUpperCase()}]`;
       btnScan.style.background = "#10b981";
-      btnScan.textContent = "Пеленгація працює";
+      btnScan.textContent = "Сканування працює";
     });
   </script>
 </body>
