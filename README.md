@@ -1,2 +1,2 @@
-# locator.html
+# locator 
 Web-прототип акустичного локатора
