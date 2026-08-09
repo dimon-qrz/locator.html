@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Акустичний Локатор</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100vh;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      color: #38bdf8;
+      text-align: center;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Радар-Canvas */
+    .radar-container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin: 10px 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #020617;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
+    }
+
+    /* Панель налаштувань (Еквалайзер/Фільтр) */
+    .controls {
+      width: 100%;
+      max-width: 360px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .preset-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .preset-btn {
+      flex: 1;
+      padding: 8px;
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .preset-btn.active {
+      background: #38bdf8;
+      color: #020617;
+      border-color: #38bdf8;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    input[type="range"] {
+      accent-color: #38bdf8;
+      width: 100%;
+    }
+
+    .status-panel {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #64748b;
+      border-top: 1px solid #334155;
+      padding-top: 8px;
+    }
+
+    /* Кнопка старт */
+    .start-btn {
+      width: 100%;
+      max-width: 360px;
+      padding: 14px;
+      background: #38bdf8;
+      color: #020617;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Акустичний Локатор</h1>
+
+  <!-- Радар із компасом і стрілкою -->
+  <div class="radar-container">
+    <canvas id="radar" width="300" height="300"></canvas>
+  </div>
+
+  <!-- Блок управління частотами -->
+  <div class="controls">
+    <div class="slider-label">
+      <span>Пресет частоти:</span>
+    </div>
+    <div class="preset-btns">
+      <button class="preset-btn active" id="btn-all">Всі частоти</button>
+      <button class="preset-btn" id="btn-saw">Бензопила (~400-1200Гц)</button>
+      <button class="preset-btn" id="btn-high">Високий писк</button>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label">
+        <span>Центральна частота:</span>
+        <span id="freq-val">800 Гц</span>
+      </div>
+      <input type="range" id="freq-slider" min="100" max="8000" step="50" value="800">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label">
+        <span>Чутливість (Поріг):</span>
+        <span id="sens-val">20%</span>
+      </div>
+      <input type="range" id="sens-slider" min="5" max="80" value="20">
+    </div>
+
+    <div class="status-panel">
+      <span>Компас: <b id="heading-txt">0°</b></span>
+      <span>Джерело: <b id="angle-txt">0°</b></span>
+      <span>Сигнал: <b id="power-txt">0%</b></span>
+    </div>
+  </div>
+
+  <button class="start-btn" id="start-btn">Запустити Локатор</button>
+
+  <script>
+    const canvas = document.getElementById('radar');
+    const ctx = canvas.getContext('2d');
+    
+    // Елементи інтерфейсу
+    const startBtn = document.getElementById('start-btn');
+    const freqSlider = document.getElementById('freq-slider');
+    const freqVal = document.getElementById('freq-val');
+    const sensSlider = document.getElementById('sens-slider');
+    const sensVal = document.getElementById('sens-val');
+    const headingTxt = document.getElementById('heading-txt');
+    const angleTxt = document.getElementById('angle-txt');
+    const powerTxt = document.getElementById('power-txt');
+
+    // Кнопки пресетів
+    const btnAll = document.getElementById('btn-all');
+    const btnSaw = document.getElementById('btn-saw');
+    const btnHigh = document.getElementById('btn-high');
+
+    // Змінні аудіо та датчиків
+    let audioCtx, filter, splitter, analyserL, analyserR;
+    let phoneHeading = 0; // Кут повороту смартфона (компас)
+    let soundAngle = 0;   // Кут джерела звуку відносно пристрою
+    let signalPower = 0;  // Сила сигналу
+    let isRunning = false;
+
+    // 1. Малювання циферблата Локатора
+    function drawRadar(angleRelative, compassHeading, power) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const r = w / 2 - 15;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Малюємо сітку радара
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+      ctx.lineWidth = 1;
+
+      // Концентричні кола
+      [r * 0.3, r * 0.6, r].forEach(radius => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // Перехрестя
+      ctx.beginPath();
+      ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+      ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+      ctx.stroke();
+
+      // Позначення сторін світу (Північ обертається відповідно до компаса)
+      ctx.fillStyle = '#64748b';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const N_angle = -compassHeading * (Math.PI / 180);
+      ctx.fillText("N", cx + (r - 10) * Math.sin(N_angle), cy - (r - 10) * Math.cos(N_angle));
+
+      // 2. Малюємо Стрілку Локатора (Вказує на джерело звуку)
+      if (power > (sensSlider.value / 100)) {
+        // Абсолютний кут з урахуванням обертання смартфона
+        const totalRad = (angleRelative - compassHeading) * (Math.PI / 180);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(totalRad);
+
+        // Градієнтний промінь
+        const grad = ctx.createLinearGradient(0, 0, 0, -r);
+        grad.addColorStop(0, 'rgba(56, 189, 248, 0.1)');
+        grad.addColorStop(1, 'rgba(56, 189, 248, 0.8)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, r, -Math.PI/2 - 0.25, -Math.PI/2 + 0.25);
+        ctx.closePath();
+        ctx.fill();
+
+        // Основна стрілка
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -r + 10);
+        ctx.stroke();
+
+        // Головка стрілки
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(0, -r + 10, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // 2. Ініціалізація Web Audio API (Еквалайзер + Стерео аналіз)
+    async function initAudio() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 2 // Запит на стереопотік
+        }
+      });
+
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Смуговий фільтр (Band-pass Filter / Еквалайзер)
+      filter = audioCtx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = parseFloat(freqSlider.value);
+      filter.Q.value = 3.0; // Ширина смуги
+
+      // Розділювач стереоканалів (Лівий / Правий)
+      splitter = audioCtx.createChannelSplitter(2);
+
+      analyserL = audioCtx.createAnalyser();
+      analyserR = audioCtx.createAnalyser();
+      analyserL.fftSize = 512;
+      analyserR.fftSize = 512;
+
+      // Ланцюг: Мікрофони -> Фільтр частоти -> Спліттер -> Аналізатори
+      source.connect(filter);
+      filter.connect(splitter);
+      splitter.connect(analyserL, 0); // Лівий канал
+      splitter.connect(analyserR, 1); // Правий канал
+
+      processAudio();
+    }
+
+    // 3. Обробка аудіопотоку
+    function processAudio() {
+      if (!isRunning) return;
+
+      const bufferL = new Uint8Array(analyserL.frequencyBinCount);
+      const bufferR = new Uint8Array(analyserR.frequencyBinCount);
+
+      analyserL.getByteFrequencyData(bufferL);
+      analyserR.getByteFrequencyData(bufferR);
+
+      // Обчислення середньої енергії на кожному каналі
+      let sumL = 0, sumR = 0;
+      for (let i = 0; i < bufferL.length; i++) {
+        sumL += bufferL[i];
+        sumR += bufferR[i];
+      }
+
+      const avgL = sumL / bufferL.length;
+      const avgR = sumR / bufferR.length;
+
+      // Загальна сила відфільтрованого звуку (0 - 1.0)
+      signalPower = Math.max(avgL, avgR) / 255;
+      powerTxt.textContent = `${Math.round(signalPower * 100)}%`;
+
+      // Різниця панорами (L vs R) перетворюється на кут (-90° до +90°)
+      if (avgL + avgR > 0) {
+        const diff = (avgR - avgL) / Math.max(avgL, avgR); // -1.0 (ліво) до +1.0 (право)
+        soundAngle = diff * 75; // Зсув стрілки в градусах
+      }
+
+      angleTxt.textContent = `${Math.round(soundAngle)}°`;
+
+      drawRadar(soundAngle, phoneHeading, signalPower);
+      requestAnimationFrame(processAudio);
+    }
+
+    // 4. Отримання даних компаса (Обертання смартфона)
+    function handleOrientation(event) {
+      if (event.webkitCompassHeading) {
+        phoneHeading = event.webkitCompassHeading; // Для iOS / Chrome
+      } else if (event.alpha !== null) {
+        phoneHeading = 360 - event.alpha; // Для Android
+      }
+      headingTxt.textContent = `${Math.round(phoneHeading)}°`;
+    }
+
+    // 5. Події та керування інтерфейсом
+    startBtn.addEventListener('click', async () => {
+      if (isRunning) return;
+      
+      try {
+        await initAudio();
+        
+        // Запит доступу до датчика орієнтації
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          await DeviceOrientationEvent.requestPermission();
+        }
+        window.addEventListener('deviceorientation', handleOrientation);
+
+        isRunning = true;
+        startBtn.style.display = 'none';
+      } catch (err) {
+        alert("Помилка доступу до мікрофона або датчиків: " + err.message);
+      }
+    });
+
+    // Оновлення налаштувань фільтра
+    freqSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      freqVal.textContent = `${val} Гц`;
+      if (filter) filter.frequency.value = val;
+    });
+
+    sensSlider.addEventListener('input', (e) => {
+      sensVal.textContent = `${e.target.value}%`;
+    });
+
+    // Пресети
+    btnAll.addEventListener('click', () => {
+      setActivePreset(btnAll);
+      if (filter) { filter.type = "allpass"; }
+    });
+
+    btnSaw.addEventListener('click', () => {
+      setActivePreset(btnSaw);
+      freqSlider.value = 800;
+      freqVal.textContent = "800 Гц";
+      if (filter) {
+        filter.type = "bandpass";
+        filter.frequency.value = 800;
+      }
+    });
+
+    btnHigh.addEventListener('click', () => {
+      setActivePreset(btnHigh);
+      freqSlider.value = 3500;
+      freqVal.textContent = "3500 Гц";
+      if (filter) {
+        filter.type = "bandpass";
+        filter.frequency.value = 3500;
+      }
+    });
+
+    function setActivePreset(btn) {
+      [btnAll, btnSaw, btnHigh].forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // Початковий кадр радара
+    drawRadar(0, 0, 0);
+  </script>
+</body>
+</html>
