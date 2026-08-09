@@ -1,352 +1,509 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Калькулятор Зворотних Струмів та Діодів Шотткі</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --accent: #38bdf8;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Акустичний Пеленгатор v5 (Фільтрація Цілей)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      min-height: 100vh;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-        }
+    h1 {
+      font-size: 1.1rem;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
 
-        .container {
-            max-width: 1280px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 360px 1fr;
-            gap: 20px;
-        }
+    .radar-box {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      margin-bottom: 10px;
+    }
+    canvas#radar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #020617;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+    }
 
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--border);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
+    .panel {
+      width: 100%;
+      max-width: 420px;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.82rem;
+    }
 
-        h1, h2, h3 {
-            margin-top: 0;
-            color: var(--accent);
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 8px;
-        }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: #1f2937;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+    }
+    label { color: #9ca3af; font-size: 0.72rem; text-transform: uppercase; }
 
-        .form-group {
-            margin-bottom: 12px;
-        }
+    select, input[type="range"] {
+      width: 100%;
+      background: #111827;
+      border: 1px solid #374151;
+      color: #f3f4f6;
+      padding: 6px 8px;
+      border-radius: 6px;
+      accent-color: #38bdf8;
+    }
 
-        label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-        input {
-            width: 100%;
-            padding: 8px 12px;
-            background-color: #0f172a;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: #fff;
-            box-sizing: border-box;
-        }
+    .step-badge {
+      background: #0284c7;
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: bold;
+    }
 
-        input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
+    .target-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      margin-top: 4px;
+    }
 
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
+    .btn-target {
+      padding: 6px 4px;
+      background: #111827;
+      border: 1px solid #374151;
+      color: #9ca3af;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      text-align: center;
+    }
 
-        .result-box {
-            background: #0f172a;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid var(--accent);
-        }
+    .btn-target.active {
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+      font-weight: bold;
+    }
 
-        .result-box.danger { border-left-color: var(--danger); }
-        .result-box.warning { border-left-color: var(--warning); }
-        .result-box.success { border-left-color: var(--success); }
+    .btn-action {
+      width: 100%;
+      padding: 10px;
+      background: #0284c7;
+      color: #fff;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
 
-        .val {
-            font-size: 1.4rem;
-            font-weight: bold;
-            margin-top: 4px;
-        }
+    .btn-action:disabled {
+      background: #374151;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
 
-        .lbl {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
+    .status-box {
+      font-size: 0.75rem;
+      color: #38bdf8;
+      text-align: center;
+      padding: 4px;
+      background: #030712;
+      border-radius: 4px;
+      border: 1px solid #1f2937;
+    }
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .charts {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .chart-card {
-            background: #0f172a;
-            padding: 15px;
-            border-radius: 8px;
-            height: 300px;
-        }
-
-        footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid var(--border);
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        @media (max-width: 900px) {
-            .container { grid-template-columns: 1fr; }
-            .charts { grid-template-columns: 1fr; }
-        }
-    </style>
+    canvas#spectrum {
+      width: 100%;
+      height: 35px;
+      background: #000;
+      border-radius: 4px;
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <!-- Бокова панель параметрів -->
-    <div class="card">
-        <h2>Параметри Масиву</h2>
+  <h1>Пеленгатор v5: Фільтр Цілей</h1>
+
+  <div class="radar-box">
+    <canvas id="radar" width="280" height="280"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="status-box" id="status-text">Виберіть профіль цілі та ініціалізуйте аудіо</div>
+
+    <!-- Блок вибору цілі / фільтрації -->
+    <div class="form-group" style="background: #1e1b4b; border-color: #4338ca;">
+      <div class="row">
+        <label style="color: #a5b4fc;">🎯 Селектор Акустичної Цілі:</label>
+        <span id="target-info" style="color: #38bdf8; font-weight: bold;">Авто</span>
+      </div>
+      <div class="target-grid">
+        <button class="btn-target active" data-target="auto">🤖 Авто</button>
+        <button class="btn-target" data-target="shahed">🛸 Шахед/Герань</button>
+        <button class="btn-target" data-target="moped">🛵 Мопед/2T</button>
+        <button class="btn-target" data-target="rocket">🚀 Ракета</button>
+        <button class="btn-target" data-target="plane">✈️ Літак</button>
+        <button class="btn-target" data-target="manual">🎛️ Ручне</button>
+      </div>
+
+      <!-- Ручне налаштування (приховане за замовчуванням) -->
+      <div id="manual-controls" style="display: none; margin-top: 6px;">
+        <div class="row">
+          <label>Центральна частота (Гц):</label>
+          <span id="lbl-freq" style="color:#38bdf8">350 Гц</span>
+        </div>
+        <input type="range" id="manual-freq" min="50" max="5000" step="25" value="350">
         
-        <div class="form-group">
-            <label>Кількість паралельних стрінгів (M):</label>
-            <input type="number" id="mStrings" value="4" min="1">
+        <div class="row" style="margin-top: 4px;">
+          <label>Добротність Q (Ширина смуги):</label>
+          <span id="lbl-q" style="color:#38bdf8">3.0</span>
         </div>
-        <div class="form-group">
-            <label>Панелей послідовно у стрінгу (N):</label>
-            <input type="number" id="nSeries" value="12" min="1">
-        </div>
-
-        <h3>Параметри Панелі (STC)</h3>
-        <div class="form-group">
-            <label>Напруга хол. ходу Voc (В):</label>
-            <input type="number" id="voc" value="49.5" step="0.1">
-        </div>
-        <div class="form-group">
-            <label>Струм short circuit Isc (А):</label>
-            <input type="number" id="isc" value="13.8" step="0.1">
-        </div>
-        <div class="form-group">
-            <label>Макс. зворотний струм запобіжника (А):</label>
-            <input type="number" id="iRevMax" value="25">
-        </div>
-
-        <h3>Параметри Діода Шотткі</h3>
-        <div class="form-group">
-            <label>Пряме падіння напруги Vf (В):</label>
-            <input type="number" id="vf" value="0.55" step="0.05">
-        </div>
-        <div class="form-group">
-            <label>Температура довкілля в щиті (°C):</label>
-            <input type="number" id="tAmb" value="45">
-        </div>
+        <input type="range" id="manual-q" min="0.5" max="10" step="0.5" value="3.0">
+      </div>
     </div>
 
-    <!-- Основне вікно аналітики -->
-    <div>
-        <div class="card" style="margin-bottom: 20px;">
-            <h2>Аналіз Зворотних Струмів та Захисту</h2>
-            <div id="statusBadge" class="status-badge"></div>
+    <canvas id="spectrum" width="396" height="35"></canvas>
 
-            <div class="results-grid">
-                <div class="result-box" id="revBox">
-                    <div class="lbl">Потенційний зворотний струм</div>
-                    <div class="val" id="resIrev">0 А</div>
-                </div>
-                <div class="result-box">
-                    <div class="lbl">Мін. Зворотна напруга (Vrrm)</div>
-                    <div class="val" id="resVrrm">0 В</div>
-                </div>
-                <div class="result-box">
-                    <div class="lbl">Теплові втрати на діоді</div>
-                    <div class="val" id="resPdiode">0 Вт</div>
-                </div>
-                <div class="result-box" id="heatBox">
-                    <div class="lbl">Температура кристала (без радіатора)</div>
-                    <div class="val" id="resTj">0 °C</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Графіки -->
-        <div class="charts">
-            <div class="chart-card">
-                <canvas id="revChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <canvas id="heatChart"></canvas>
-            </div>
-        </div>
+    <!-- Налаштування мікрофонів -->
+    <div class="form-group">
+      <div class="row">
+        <label><span class="step-badge">MIC 1</span> Основний (0°)</label>
+        <span id="lbl-m1-val" style="color:#38bdf8">0° | 0 мс</span>
+      </div>
+      <select id="mic-1"><option>Завантаження...</option></select>
     </div>
-</div>
 
-<footer id="footerText">
-    Розробка виконана в межах аналітичної ініціативи з глибокої системи інформації та розрахунку енергетичних систем.
-</footer>
+    <div class="form-group">
+      <div class="row">
+        <label><span class="step-badge" style="background:#f59e0b">MIC 2</span> Додатковий (90°)</label>
+        <span id="lbl-m2-val" style="color:#f59e0b">90° | 120 мс</span>
+      </div>
+      <select id="mic-2"><option>Завантаження...</option></select>
+      <div class="row" style="margin-top: 4px;">
+        <label>Компенсація затримки (мс):</label>
+        <input type="range" id="m2-delay" min="0" max="500" value="120" style="width: 60%;">
+      </div>
+    </div>
 
-<script>
-    let revChartInst = null;
-    let heatChartInst = null;
+    <div class="row" style="font-size:0.75rem;">
+      <span>M1: <b id="pwr-m1" style="color:#10b981">0%</b></span>
+      <span>M2: <b id="pwr-m2" style="color:#f59e0b">0%</b></span>
+      <span>Азимут: <b id="calc-azimuth" style="color:#38bdf8">0°</b></span>
+    </div>
 
-    function calculate() {
-        const M = parseInt(document.getElementById('mStrings').value) || 1;
-        const N = parseInt(document.getElementById('nSeries').value) || 1;
-        const Voc = parseFloat(document.getElementById('voc').value) || 0;
-        const Isc = parseFloat(document.getElementById('isc').value) || 0;
-        const IrevMax = parseFloat(document.getElementById('iRevMax').value) || 0;
-        const Vf = parseFloat(document.getElementById('vf').value) || 0.55;
-        const Tamb = parseFloat(document.getElementById('tAmb').value) || 25;
+    <button class="btn-action" id="btn-init">1. Старт Калібрування</button>
+    <button class="btn-action" id="btn-scan" disabled>2. Запустити Пеленгацію</button>
+  </div>
 
-        // 1. Потенційний зворотний струм без захисту
-        const maxRevCurrent = (M - 1) * Isc;
-        const isHazardous = maxRevCurrent > IrevMax;
+  <script>
+    const rCanvas = document.getElementById('radar');
+    const rCtx = rCanvas.getContext('2d');
+    const sCanvas = document.getElementById('spectrum');
+    const sCtx = sCanvas.getContext('2d');
 
-        // 2. Параметри Діода
-        const VocTotal = N * Voc;
-        const VrrmMin = VocTotal * 1.25; // 25% запас
-        const IfMin = Isc * 1.25;
-        const Pdiode = Isc * Vf;
+    const mic1Select = document.getElementById('mic-1');
+    const mic2Select = document.getElementById('mic-2');
+    const m2Delay = document.getElementById('m2-delay');
+    const lblM2 = document.getElementById('lbl-m2-val');
+    const statusText = document.getElementById('status-text');
 
-        // 3. Тепловий розрахунок (TO-220 корпус: Rth_ja ≈ 60 °C/W без радіатора)
-        const Rth_ja = 50; 
-        const TjNoHeatsink = Tamb + (Pdiode * Rth_ja);
-        const requiresHeatsink = TjNoHeatsink > 125;
+    const targetBtns = document.querySelectorAll('.btn-target');
+    const targetInfo = document.getElementById('target-info');
+    const manualControls = document.getElementById('manual-controls');
+    const manualFreq = document.getElementById('manual-freq');
+    const manualQ = document.getElementById('manual-q');
+    const lblFreq = document.getElementById('lbl-freq');
+    const lblQ = document.getElementById('lbl-q');
 
-        // Оновлення інтерфейсу
-        document.getElementById('resIrev').innerText = `${maxRevCurrent.toFixed(1)} А`;
-        document.getElementById('resVrrm').innerText = `≥ ${VrrmMin.toFixed(0)} В`;
-        document.getElementById('resPdiode').innerText = `${Pdiode.toFixed(1)} Вт`;
-        document.getElementById('resTj').innerText = `${TjNoHeatsink.toFixed(0)} °C`;
+    const btnInit = document.getElementById('btn-init');
+    const btnScan = document.getElementById('btn-scan');
 
-        const statusBadge = document.getElementById('statusBadge');
-        const revBox = document.getElementById('revBox');
-        const heatBox = document.getElementById('heatBox');
+    let audioCtx, filter1, filter2, analyser1, analyser2, spectrumAnalyser;
+    let delayNode1, delayNode2;
+    let isInitialized = false, isScanning = false;
+    let currentAzimuth = 0, scanLineAngle = 0;
+    let activeTargetMode = 'auto';
 
-        if (M < 3 && !isHazardous) {
-            statusBadge.innerText = "СТАН БЕЗПЕЧНИЙ: Захист діодами не є обов'язковим (M < 3)";
-            statusBadge.style.backgroundColor = "var(--success)";
-            statusBadge.style.color = "#fff";
-            revBox.className = "result-box success";
-        } else if (isHazardous) {
-            statusBadge.innerText = "КРИТИЧНО: Високий ризик пошкодження затіненого стрінга! Потрібні діоди/запобіжники";
-            statusBadge.style.backgroundColor = "var(--danger)";
-            statusBadge.style.color = "#fff";
-            revBox.className = "result-box danger";
+    // Профілі частот (Центральна частота та Q-фактор)
+    const TARGET_PROFILES = {
+      shahed: { freq: 280, q: 4.0, label: "Шахед (120-450 Гц)" },
+      moped:  { freq: 450, q: 2.5, label: "Мопед/2T (200-800 Гц)" },
+      rocket: { freq: 2800, q: 1.8, label: "Ракета (1.5-4.5 кГц)" },
+      plane:  { freq: 180, q: 3.5, label: "Літак (80-350 Гц)" },
+      manual: { freq: 350, q: 3.0, label: "Ручний режим" },
+      auto:   { freq: 500, q: 1.0, label: "Авто-Захоплення" }
+    };
+
+    // Перемикання пресетів
+    targetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        targetBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeTargetMode = btn.dataset.target;
+
+        if (activeTargetMode === 'manual') {
+          manualControls.style.display = 'block';
         } else {
-            statusBadge.innerText = "УВАГА: Рекомендовано встановлення блокуючих діодів";
-            statusBadge.style.backgroundColor = "var(--warning)";
-            statusBadge.style.color = "#000";
-            revBox.className = "result-box warning";
+          manualControls.style.display = 'none';
         }
 
-        if (requiresHeatsink) {
-            heatBox.className = "result-box danger";
-        } else {
-            heatBox.className = "result-box success";
-        }
+        applyFilterSettings();
+      });
+    });
 
-        renderCharts(M, Isc, IrevMax, Vf, Tamb);
+    manualFreq.addEventListener('input', (e) => {
+      lblFreq.textContent = `${e.target.value} Гц`;
+      applyFilterSettings();
+    });
+
+    manualQ.addEventListener('input', (e) => {
+      lblQ.textContent = parseFloat(e.target.value).toFixed(1);
+      applyFilterSettings();
+    });
+
+    function applyFilterSettings() {
+      if (!filter1 || !filter2) return;
+
+      const profile = TARGET_PROFILES[activeTargetMode];
+      targetInfo.textContent = profile.label;
+
+      if (activeTargetMode === 'manual') {
+        filter1.frequency.value = parseFloat(manualFreq.value);
+        filter2.frequency.value = parseFloat(manualFreq.value);
+        filter1.Q.value = parseFloat(manualQ.value);
+        filter2.Q.value = parseFloat(manualQ.value);
+      } else if (activeTargetMode !== 'auto') {
+        filter1.frequency.value = profile.freq;
+        filter2.frequency.value = profile.freq;
+        filter1.Q.value = profile.q;
+        filter2.Q.value = profile.q;
+      }
     }
 
-    function renderCharts(M, Isc, IrevMax, Vf, Tamb) {
-        // Графік 1: Зворотний струм від кількості паралельних стрінгів
-        const stringsLabels = [];
-        const revData = [];
-        const limitData = [];
+    m2Delay.addEventListener('input', () => {
+      lblM2.textContent = `90° | ${m2Delay.value} мс`;
+      if (delayNode2) delayNode2.delayTime.value = m2Delay.value / 1000;
+    });
 
-        for (let s = 1; s <= 8; s++) {
-            stringsLabels.push(`${s} стрінгів`);
-            revData.push((s - 1) * Isc);
-            limitData.push(IrevMax);
-        }
-
-        if (revChartInst) revChartInst.destroy();
-        revChartInst = new Chart(document.getElementById('revChart'), {
-            type: 'line',
-            data: {
-                labels: stringsLabels,
-                datasets: [
-                    { label: 'Зворотний струм (А)', data: revData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true },
-                    { label: 'Межа безпеки панелі (А)', data: limitData, borderColor: '#10b981', borderDash: [5, 5] }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { title: { display: true, text: 'Залежність Зворотного Струму від Кількості Стрінгів', color: '#fff' } },
-                scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } }
-            }
+    // Отримання мікрофонів
+    async function getDevices() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        mic1Select.innerHTML = ''; mic2Select.innerHTML = '';
+        const inputs = devices.filter(d => d.kind === 'audioinput');
+        inputs.forEach((d, i) => {
+          mic1Select.add(new Option(d.label || `Мікрофон ${i+1}`, d.deviceId));
+          mic2Select.add(new Option(d.label || `Мікрофон ${i+1}`, d.deviceId));
         });
+        if (inputs.length > 1) mic2Select.selectedIndex = 1;
+      } catch (e) {
+        statusText.textContent = "Помилка доступу до мікрофонів!";
+      }
+    }
+    getDevices();
 
-        // Графік 2: Теплові втрати діода від струму стрінга
-        const currentLabels = [];
-        const powerData = [];
+    // Малювання радара
+    function drawRadar() {
+      const w = rCanvas.width, h = rCanvas.height;
+      const cx = w / 2, cy = h / 2, r = w / 2 - 15;
 
-        for (let i = 2; i <= 20; i += 2) {
-            currentLabels.push(`${i} А`);
-            powerData.push(i * Vf);
+      rCtx.clearRect(0, 0, w, h);
+      rCtx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+      rCtx.lineWidth = 1;
+      [r * 0.33, r * 0.66, r].forEach(rad => {
+        rCtx.beginPath(); rCtx.arc(cx, cy, rad, 0, Math.PI * 2); rCtx.stroke();
+      });
+
+      rCtx.beginPath();
+      rCtx.moveTo(cx - r, cy); rCtx.lineTo(cx + r, cy);
+      rCtx.moveTo(cx, cy - r); rCtx.lineTo(cx, cy + r);
+      rCtx.stroke();
+
+      // М1 (0° - верх)
+      rCtx.fillStyle = '#10b981';
+      rCtx.beginPath(); rCtx.arc(cx, cy - r + 5, 5, 0, Math.PI * 2); rCtx.fill();
+
+      // М2 (90° - право)
+      rCtx.fillStyle = '#f59e0b';
+      rCtx.beginPath(); rCtx.arc(cx + r - 5, cy, 5, 0, Math.PI * 2); rCtx.fill();
+
+      if (isScanning) {
+        scanLineAngle = (scanLineAngle + 0.04) % (Math.PI * 2);
+        rCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        rCtx.beginPath();
+        rCtx.moveTo(cx, cy);
+        rCtx.lineTo(cx + r * Math.cos(scanLineAngle), cy + r * Math.sin(scanLineAngle));
+        rCtx.stroke();
+
+        const azRad = (currentAzimuth - 90) * (Math.PI / 180);
+        rCtx.strokeStyle = '#ef4444';
+        rCtx.lineWidth = 3;
+        rCtx.beginPath();
+        rCtx.moveTo(cx, cy);
+        rCtx.lineTo(cx + (r - 10) * Math.cos(azRad), cy + (r - 10) * Math.sin(azRad));
+        rCtx.stroke();
+      }
+
+      requestAnimationFrame(drawRadar);
+    }
+    drawRadar();
+
+    // Малювання Спектрограми
+    function drawSpectrum() {
+      if (!spectrumAnalyser) return;
+      const buffer = new Uint8Array(spectrumAnalyser.frequencyBinCount);
+      spectrumAnalyser.getByteFrequencyData(buffer);
+
+      sCtx.clearRect(0, 0, sCanvas.width, sCanvas.height);
+      const barWidth = (sCanvas.width / buffer.length) * 2;
+      let x = 0;
+
+      // Авто-захоплення частоти піку
+      let maxVol = 0, maxIndex = 0;
+
+      for (let i = 0; i < buffer.length; i++) {
+        const barHeight = (buffer[i] / 255) * sCanvas.height;
+        sCtx.fillStyle = (activeTargetMode === 'auto') ? '#a855f7' : '#38bdf8';
+        sCtx.fillRect(x, sCanvas.height - barHeight, barWidth, barHeight);
+        x += barWidth + 1;
+
+        if (buffer[i] > maxVol) {
+          maxVol = buffer[i];
+          maxIndex = i;
         }
+      }
 
-        if (heatChartInst) heatChartInst.destroy();
-        heatChartInst = new Chart(document.getElementById('heatChart'), {
-            type: 'bar',
-            data: {
-                labels: currentLabels,
-                datasets: [{ label: 'Втрати потужності (Вт)', data: powerData, backgroundColor: '#38bdf8' }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { title: { display: true, text: 'Теплова Потужність на Діоді (Vf = ' + Vf + 'В)', color: '#fff' } },
-                scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } }
-            }
-        });
+      // Якщо режим АВТО - підлаштовуємо фільтр під найгучніший пік
+      if (activeTargetMode === 'auto' && maxVol > 50 && filter1) {
+        const nyquist = audioCtx.sampleRate / 2;
+        const peakFreq = (maxIndex / buffer.length) * (nyquist / 4);
+        if (peakFreq > 60) {
+          filter1.frequency.value = peakFreq;
+          filter2.frequency.value = peakFreq;
+          targetInfo.textContent = `Авто (${Math.round(peakFreq)} Гц)`;
+        }
+      }
+
+      requestAnimationFrame(drawSpectrum);
     }
 
-    document.querySelectorAll('input').forEach(i => i.addEventListener('input', calculate));
-    calculate();
-</script>
+    // Аудіо процес
+    btnInit.addEventListener('click', async () => {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+      try {
+        const stream1 = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { exact: mic1Select.value }, echoCancellation: false, noiseSuppression: false }
+        });
+        const stream2 = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { exact: mic2Select.value }, echoCancellation: false, noiseSuppression: false }
+        });
+
+        const src1 = audioCtx.createMediaStreamSource(stream1);
+        const src2 = audioCtx.createMediaStreamSource(stream2);
+
+        // Вузли Затримки
+        delayNode1 = audioCtx.createDelay(1.0);
+        delayNode2 = audioCtx.createDelay(1.0);
+        delayNode2.delayTime.value = parseFloat(m2Delay.value) / 1000;
+
+        // Вузли Фільтрації (Bandpass)
+        filter1 = audioCtx.createBiquadFilter();
+        filter2 = audioCtx.createBiquadFilter();
+        filter1.type = "bandpass";
+        filter2.type = "bandpass";
+
+        analyser1 = audioCtx.createAnalyser();
+        analyser2 = audioCtx.createAnalyser();
+        spectrumAnalyser = audioCtx.createAnalyser();
+        analyser1.fftSize = 256;
+        analyser2.fftSize = 256;
+        spectrumAnalyser.fftSize = 128;
+
+        // З'єднання ланцюга: Src -> Delay -> Filter -> Analyser
+        src1.connect(delayNode1);
+        delayNode1.connect(filter1);
+        filter1.connect(analyser1);
+        filter1.connect(spectrumAnalyser);
+
+        src2.connect(delayNode2);
+        delayNode2.connect(filter2);
+        filter2.connect(analyser2);
+
+        applyFilterSettings();
+
+        isInitialized = true;
+        btnScan.disabled = false;
+        btnInit.style.display = 'none';
+        statusText.textContent = "Система відфільтрована. Натисніть «Запустити Пеленгацію».";
+
+        processAudio();
+        drawSpectrum();
+      } catch (err) {
+        statusText.textContent = "Помилка підключення аудіопристроїв!";
+      }
+    });
+
+    function processAudio() {
+      if (!isInitialized) return;
+
+      const buf1 = new Uint8Array(analyser1.frequencyBinCount);
+      const buf2 = new Uint8Array(analyser2.frequencyBinCount);
+
+      analyser1.getByteFrequencyData(buf1);
+      analyser2.getByteFrequencyData(buf2);
+
+      const avg1 = buf1.reduce((a, b) => a + b, 0) / buf1.length;
+      const avg2 = buf2.reduce((a, b) => a + b, 0) / buf2.length;
+
+      document.getElementById('pwr-m1').textContent = `${Math.round((avg1 / 255) * 100)}%`;
+      document.getElementById('pwr-m2').textContent = `${Math.round((avg2 / 255) * 100)}%`;
+
+      if (avg1 + avg2 > 5) {
+        const ratio = avg2 / (avg1 + avg2);
+        currentAzimuth = ratio * 90; // кут між M1 (0°) та M2 (90°)
+        document.getElementById('calc-azimuth').textContent = `${Math.round(currentAzimuth)}°`;
+      }
+
+      setTimeout(processAudio, 40);
+    }
+
+    btnScan.addEventListener('click', () => {
+      isScanning = true;
+      statusText.textContent = `Сканування активне [Профіль: ${activeTargetMode.toUpperCase()}]`;
+      btnScan.style.background = "#10b981";
+      btnScan.textContent = "Пеленгація працює";
+    });
+  </script>
 </body>
 </html>
